@@ -35,6 +35,8 @@
   #include <stdlib.h>
   #include <stdio.h>
   #include <iostream>
+  #include <vector>
+   #include <string>
 
 
   #include <boost/multiprecision/cpp_int.hpp>   
@@ -56,7 +58,229 @@
 #define BUFFER_SIZE 500
 #define RBUFFER_SIZE 256
 
-// using namespace std;
+using namespace std;
+
+///////////////////////////////////////////////////////////////////////
+
+/////////////////NOTES////////////
+/*
+Week 6
+Server
+- Has a pubic key (e,n) and a private key (d,n)
+- Has a cert issued by a CA dCA(e,n) <- encrypted public key of the server
+make our own dCA(e,n)
+
+CLIENT
+- eCA RSA public key
+- nonce - used as part of CBC
+
+Exchange
+1. SERVER - Send cert dCA(e,n) to client
+2. Client- extracts the public key of the server (e,n) usding its CA public key eCA(dCA(e,n)) -> (e,n)
+3. Client - Send "ACK 226 Public key received"
+4. Client - Send e(nonce)
+5. Server - Extract nonce using its private key (d,n) -> Sed "ACK 220 nonce ok"
+6. CLIEN - Each message from client is then encrypted using the RSA-CBC and server decrypts boom.
+
+
+*/
+/////////////////////////////////////////////////////////////////////
+
+int repeat_square(int x, int e, int n)
+{
+   unsigned long long int y = 1; // initialize y to 1, very important
+   while (e > 0)
+   {
+      if ((e % 2) == 0)
+      {
+         x = (x * x) % n;
+         e = e / 2;
+      }
+      else
+      {
+         y = (x * y) % n;
+         e = e - 1;
+      }
+   }
+   return y; // the result is stored in y
+}
+/// Generate the RSA keys
+void generateRSA(unsigned long long &e, unsigned long long &n, unsigned long long &d)
+{
+   // lecture
+   int p = 173;
+   int q = 149;
+
+   n = 25777;
+   unsigned long long z = (p - 1) * (q - 1); // 25456
+   e = 3;                                    // public
+   d = 16971;                                // private
+
+   // KEYS
+
+   // public(e,n)
+   //  e = 3; //public
+   //  n = 25777; //public
+   // private(d,n)
+   //  d = 16971; // private
+   //  n = 25777; //private
+}
+// Generate the CA keys
+void generateCA(unsigned long long &eCA, unsigned long long &nCA, unsigned long long &dCA)
+{
+   // lecture Change these to larger prime numebrs, USE the BOOST
+   unsigned long long p = 173;
+   unsigned long long q = 149;
+
+   nCA = 25777;
+   unsigned long long z = (p - 1) * (q - 1); // 25456
+   eCA = 3;                                  // public
+   dCA = 16971;                              // private
+}
+// TestFucntion
+void testRSA_4()
+{
+   cout << "<< RSA TEST >>" << endl;
+   cout << "integer numbers." << endl;
+   unsigned long long e, n, z;
+   unsigned long long d;
+   // int nonce;
+   // int calculatedRandomNum;
+   // p=173 and q=149
+   // int p=173;
+   // int q=149;
+
+   // note: p and q must be prime numbers!
+   //  int p=5;
+   //  int q=7;
+
+   // n=p*q;
+   // z = (p-1)*(q-1);
+   // e = 5;
+   // d = 29;
+   // int input = 12;
+
+   //------------------------
+   // lecture
+   int p = 173;
+   int q = 149;
+
+   n = 25777;
+   z = (p - 1) * (q - 1); // 25456
+   e = 3;                 // public
+   d = 16971;             // private
+
+   // KEYS
+
+   // public(e,n)
+   //  e = 3; //public
+   //  n = 25777; //public
+   // private(d,n)
+   //  d = 16971; // private
+   //  n = 25777; //private
+
+   //------------------------
+
+   // //lecture
+   // unsigned long long p=431;
+   // unsigned long long q=443;
+
+   // n=190933;
+   // z = (p-1)*(q-1);
+   // e = 2113;
+   // d = 74297;
+
+   //------------------------
+
+   unsigned long long input = 66; // 1234;
+
+   unsigned long long cipher;
+   cout << "p = " << p << endl;
+   cout << "q = " << q << endl;
+   cout << "n = " << n << endl;
+   cout << "z = " << z << endl;
+   cout << "--------------" << endl;
+   cout << "(input) m = " << input << endl;
+   cout << "\npublic key(e,n) = (" << e << ", " << n << ")" << endl;
+   cout << "encrypting: c = m^e mod n" << endl;
+   cout << "encrypting: c = " << input << "^" << e << " mod " << n << endl;
+   cipher = repeat_square(input, e, n);
+
+   cout << "cipher c = " << cipher << endl;
+
+   cout << "\nprivate key(d,n) = (" << d << ", " << n << ")" << endl;
+   cout << "decrypting: m = c^d mod n" << endl;
+   cout << "decrypting: c = " << cipher << "^" << d << " mod " << n << endl;
+   unsigned long long number = repeat_square(cipher, d, n);
+   cout << "decrypted value = " << number << endl;
+
+   cout << "\n--- Analysing results ---" << endl;
+   if (input == number)
+   {
+      cout << "We have a match, therefore correct decryption!, " << "input = " << input << ", decrypted value = " << number << endl;
+   }
+   else
+   {
+      cout << "Error in decryption!!" << "input = " << input << ", decrypted value = " << number << endl;
+   }
+}
+// Create the certificate
+unsigned long long cert(unsigned long long &e, unsigned long long &n, unsigned long long &dCA, unsigned long long &nCA)
+{
+   // lecture Change these to larger prime numebrs, USE the BOOST
+   unsigned long long together = e;
+   return repeat_square(together, dCA, nCA);
+}
+// Verigy the certificate
+unsigned long long verifyCert(unsigned long long &cert, unsigned long long &eCA, unsigned long long &nCA)
+{
+   // lecture Change these to larger prime numebrs, USE the BOOST
+   return repeat_square(cert, eCA, nCA);
+}
+
+// 1. RSA-CBC Encryption
+vector<unsigned long long> encryptRSA_CBC(const string &message,unsigned long long e, unsigned long long n, unsigned long long nonce)
+{
+   vector<unsigned long long> ciphertext;
+   unsigned long long previousCipher = nonce; // Initialize with nonce
+
+   for (char c : message)
+   {
+      // XOR the ASCII value with previous cipher block
+      unsigned long long m_xor = (unsigned long long)c ^ previousCipher;
+      // Encrypt with RSA
+      unsigned long long cipher = repeat_square(m_xor, e, n);
+      // Add to ciphertext
+      ciphertext.push_back(cipher);
+      // Update previous cipher for next block
+      previousCipher = cipher;
+   }
+
+   return ciphertext;
+}
+
+// 2. RSA-CBC Decryption
+string decryptRSA_CBC(const vector<unsigned long long> &ciphertext,
+                           unsigned long long d, unsigned long long n,
+                           unsigned long long nonce)
+{
+   string plaintext;
+   unsigned long long previousCipher = nonce; // Initialize with nonce
+
+   for (unsigned long long cipher : ciphertext)
+   {
+      // Decrypt with RSA
+      unsigned long long decrypted = repeat_square(cipher, d, n);
+      // XOR with previous cipher block
+      unsigned long long m = decrypted ^ previousCipher;
+      // Convert back to char and add to plaintext
+      plaintext.push_back((char)m);
+      // Update previous cipher for next block
+      previousCipher = cipher;
+   }
+
+   return plaintext;
+}
 
 
 
