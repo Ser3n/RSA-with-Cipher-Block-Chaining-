@@ -754,6 +754,11 @@ int main(int argc, char *argv[])
       printf("the <<<SERVER>>> is waiting to receive messages.\n");
 
       cout << "\n===========================" << endl;
+
+      //********************************************************************
+      // SEND the certificate to the client
+      //********************************************************************
+
       cout << "SERVER - Sending certificate to client" << endl;
       snprintf(send_buffer, BUFFER_SIZE, "CERT:%llu\r\n", cert); // https://stackoverflow.com/questions/3662899/understanding-the-dangers-of-sprintf
       bytes = send(ns, send_buffer, strlen(send_buffer), 0);
@@ -765,8 +770,8 @@ int main(int argc, char *argv[])
 
       printf("\n--------------------------------------------\n");
 
+      // Wait for Client to acknowledge with ACK 226
       n = 0;
-
       while (1)
       {
          bytes = recv(ns, &receive_buffer[n], 1, 0);
@@ -784,11 +789,30 @@ int main(int argc, char *argv[])
       }
 
       cout << "Received from client: " << receive_buffer << endl;
-      printBuffer("RECEIVE_BUFFER", receive_buffer);//debug
+      printBuffer("RECEIVE_BUFFER", receive_buffer); // debug
 
-       // Verify client acknowledged certificate receipt
-       if(strncmp(receive_buffer, "ACK 226", 7) == 0) {
+      // Verify client acknowledged certificate receipt
+      if (strncmp(receive_buffer, "ACK 226", 7) == 0)
+      {
          printf("Client acknowledged certificate receipt\n");
+      }
+      else
+      {
+         printf("Negative acknowledgment\n");
+         break;
+      }
+
+      //********************************************************************
+      // SEND ACK 220 to client
+      //********************************************************************
+      cout << "SERVER - Sending ACK 220 to client" << endl;
+
+      snprintf(send_buffer, BUFFER_SIZE, "ACK 220\r\n"); // ACK 220 to acknowledge receipt of certificate
+      bytes = send(ns, send_buffer, strlen(send_buffer), 0);
+      printBuffer("SEND_BUFFER", send_buffer); // debug
+      cout << "Sent ACK 220: " << send_buffer << endl;
+      cout << "==============================================\n";
+      
 
       while (1)
       {
@@ -837,6 +861,7 @@ int main(int argc, char *argv[])
             break;
 #endif
       }
+
       //********************************************************************
       // CLOSE SOCKET
       //********************************************************************
@@ -868,7 +893,6 @@ int main(int argc, char *argv[])
 
       printf("\ndisconnected from << Client >> with IP address:%s, Port:%s\n", clientHost, clientService);
       printf("=============================================");
-
    } // main loop
 //***********************************************************************
 #if defined __unix__ || defined __APPLE__
