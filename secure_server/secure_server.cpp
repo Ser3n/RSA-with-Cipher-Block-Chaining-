@@ -801,17 +801,68 @@ int main(int argc, char *argv[])
          printf("Negative acknowledgment\n");
          break;
       }
+      
+
+      //Client is now sending the Encrypted Nonce to the server
+      //Extract the nonce from the received message
+      memset(&send_buffer, 0, BUFFER_SIZE);//clear the send buffer was not receiving correct nonce!
+          n = 0;
+          while (1)
+          {
+             bytes = recv(ns, &receive_buffer[n], 1, 0);
+    
+             if ((bytes < 0) || (bytes == 0))
+                break;
+    
+             if (receive_buffer[n] == '\n')
+             { /*end on a LF, Note: LF is equal to one character*/
+                receive_buffer[n] = '\0';
+                break;
+             }
+             if (receive_buffer[n] != '\r')
+                n++; /*ignore CRs*/
+          }
+      cout << "Received from client: " << receive_buffer << endl;
+      printBuffer("RECEIVE_BUFFER", receive_buffer); // debug
+
+      unsigned long long receivedNonce = 0;
+      //string sReceivedNonce = "";
+      bool getNonce = false; // Flag to check if nonce is received
+      if (sscanf(receive_buffer, "ENC:%llu", &receivedNonce) == 1) {
+         getNonce = true; // Set flag to true
+
+      }else{
+         printf("Error parsing encrypted nonce\n");
+         getNonce = false; // Set flag to false
+         break;
+
+      }
+            
+      cout << "Received nonce: " << receivedNonce << endl;
+      // Decrypt the nonce using the server's private key (d,n)
+      if (getNonce == true)
+      {
+         nonce = repeat_square(receivedNonce, serverKey->d, serverKey->n);
+
+         cout << "Decrypted nonce: " << nonce << endl;
+      }
+   
+      
 
       //********************************************************************
       // SEND ACK 220 to client
       //********************************************************************
       cout << "SERVER - Sending ACK 220 to client" << endl;
 
-      snprintf(send_buffer, BUFFER_SIZE, "ACK 220\r\n"); // ACK 220 to acknowledge receipt of certificate
+      snprintf(send_buffer, BUFFER_SIZE, "ACK 220\r\n"); // ACK 220 to acknowledge receipt of Nonce
       bytes = send(ns, send_buffer, strlen(send_buffer), 0);
       printBuffer("SEND_BUFFER", send_buffer); // debug
       cout << "Sent ACK 220: " << send_buffer << endl;
       cout << "==============================================\n";
+      cout << "SERVER - Waiting for messages from client" << endl;
+      cout << "==============================================\n";
+
+      nonce = repeat_square(nonce, serverKey->d, serverKey->n); // Decrypt nonce using RSA
       
 
       while (1)
