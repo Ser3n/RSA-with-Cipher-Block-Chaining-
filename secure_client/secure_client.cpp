@@ -543,7 +543,7 @@ int main(int argc, char *argv[])
 	//Send encrypted nonce to server
 	snprintf(send_buffer, BUFFER_SIZE, "ENC:%llu\r\n", encryptedNonce); // Send encrypted nonce to server
 	bytes = send(s, send_buffer, strlen(send_buffer), 0);
-	printBuffer("SEND_BUFFER", send_buffer); // debug the header
+	printBuffer("SEND_BUFFER", send_buffer); // debug
 	cout << "Sent encrypted nonce: " << send_buffer<< endl;
 
 	cout << "==============================================\n";	
@@ -570,8 +570,9 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Received from server: %s\n", receive_buffer);
+	printBuffer("RECEIVE_BUFFER", receive_buffer); // debug
    
-   if (strncmp(receive_buffer, "ACK 220 nonce ok", 16) != 0) {
+   if (strncmp(receive_buffer, "ACK 220", 7) != 0) {
       printf("Server did not acknowledge nonce correctly\n");
       exit(1);
    }
