@@ -183,7 +183,7 @@ void displayServerKeys(RSA *keys)
 // Display certificate information using pointers
 void displayCertificate(unsigned long long cert, CA *caCert)
 {
-   cout << "\n======================CERT KEYS=========================" << endl;
+   cout << "\n===========Certificate issued by a CA =================" << endl;
    cout << "Certificate dCA(e,n): " << cert << endl;
    cout << "Certificate signed with CA keys (dCA,nCA): (" << caCert->dCA << ", " << caCert->nCA << ")" << endl;
    cout << "\n=======================================================" << endl;
@@ -277,46 +277,49 @@ void testRSA_4()
 }
 
 // 1. RSA-CBC Encryption ->  Week 05 security_CBC and implementing RSA_CBC week 6
-vector<unsigned long long> encryptRSA_CBC(const string &message, RSA *serverKey, unsigned long long nonce)
-{
-   vector<unsigned long long> ciphertext;
-   unsigned long long previousCipher = nonce; // Initialize with nonce
+// vector<unsigned long long> encryptRSA_CBC(const string &message, RSA *serverKey, unsigned long long nonce)
+// {
+//    vector<unsigned long long> ciphertext;
+//    unsigned long long previousCipher = nonce; // Initialize with nonce
 
-   // Process char by char
-   for (char c : message)
-   {
-      // XOR the ASCII value with previous cipher block
-      unsigned long long m_xor = (unsigned long long)c ^ previousCipher;
-      // Encrypt with RSA
-      unsigned long long cipher = repeat_square(m_xor, serverKey->e, serverKey->n);
-      // Add to ciphertext
-      ciphertext.push_back(cipher);
-      // Update previous cipher for next block
-      previousCipher = cipher;
-   }
+//    // Process char by char
+//    for (char c : message)
+//    {
+//       // XOR the ASCII value with previous cipher block
+//       unsigned long long m_xor = (unsigned long long)c ^ previousCipher;
+//       // Encrypt with RSA
+//       unsigned long long cipher = repeat_square(m_xor, serverKey->e, serverKey->n);
+//       // Add to ciphertext
+//       ciphertext.push_back(cipher);
+//       // Update previous cipher for next block
+//       previousCipher = cipher;
+//    }
 
-   return ciphertext;
-}
+//    return ciphertext;
+// }
 
 // 2. RSA-CBC Decryption
-string decryptRSA_CBC(const vector<unsigned long long> &ciphertext, unsigned long long d, unsigned long long n, unsigned long long nonce)
+string decryptRSA_CBC(const vector<unsigned long long>& encryptedMessage, unsigned long long d, unsigned long long n, unsigned long long nonce)
 {
-   string plaintext;
+   string OriginalMessage;
    unsigned long long previousCipher = nonce; // Initialize with nonce
 
-   for (unsigned long long cipher : ciphertext)
+   for (unsigned long long c : encryptedMessage)
    {
+      cout << "Cipher: " << c << endl;
       // Decrypt with RSA
-      unsigned long long decrypted = repeat_square(cipher, d, n);
+      unsigned long long decrypted = repeat_square(c, d, n);
+      cout << "Decrypted: " << decrypted << endl;
       // XOR with previous cipher block
-      unsigned long long m = decrypted ^ previousCipher;
+      unsigned long long Value = decrypted ^ previousCipher;
+      cout << "XORed: " << Value << endl;
       // Convert back to char and add to plaintext
-      plaintext.push_back((char)m);
+      OriginalMessage.push_back((char)Value);
       // Update previous cipher for next block
-      previousCipher = cipher;
+      previousCipher = c;
    }
 
-   return plaintext;
+   return OriginalMessage;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -827,7 +830,7 @@ int main(int argc, char *argv[])
 
       unsigned long long receivedNonce = 0;
       //string sReceivedNonce = "";
-      bool getNonce = false; // Flag to check if nonce is received
+     getNonce = false; // Flag to check if nonce is received
       if (sscanf(receive_buffer, "ENC:%llu", &receivedNonce) == 1) {
          getNonce = true; // Set flag to true
 
@@ -838,13 +841,13 @@ int main(int argc, char *argv[])
 
       }
             
-      cout << "Received nonce: " << receivedNonce << endl;
+      cout << "Received encypted NONCE e(NONCE): " << receivedNonce << endl;
       // Decrypt the nonce using the server's private key (d,n)
       if (getNonce == true)
       {
          nonce = repeat_square(receivedNonce, serverKey->d, serverKey->n);
 
-         cout << "Decrypted nonce: " << nonce << endl;
+         cout << "Decrypted NONCE d(e(NONCE)): " << nonce << endl;
       }
    
       
@@ -852,17 +855,19 @@ int main(int argc, char *argv[])
       //********************************************************************
       // SEND ACK 220 to client
       //********************************************************************
-      cout << "SERVER - Sending ACK 220 to client" << endl;
+      cout << "SENDING ACK 220 to client" << endl;
 
       snprintf(send_buffer, BUFFER_SIZE, "ACK 220\r\n"); // ACK 220 to acknowledge receipt of Nonce
       bytes = send(ns, send_buffer, strlen(send_buffer), 0);
       printBuffer("SEND_BUFFER", send_buffer); // debug
-      cout << "Sent ACK 220: " << send_buffer << endl;
+      cout << "ACK 220 nonce OK: " << send_buffer << endl;
+
+
       cout << "==============================================\n";
       cout << "SERVER - Waiting for messages from client" << endl;
       cout << "==============================================\n";
 
-      nonce = repeat_square(nonce, serverKey->d, serverKey->n); // Decrypt nonce using RSA
+      // nonce = repeat_square(nonce, serverKey->d, serverKey->n); // Decrypt nonce using RSA
       
 
       while (1)
@@ -894,8 +899,43 @@ int main(int argc, char *argv[])
          //********************************************************************
          // PROCESS REQUEST
          //********************************************************************
+         //Convert the received encrypteed message to a vector of unsigned long long
+         vector<unsigned long long> encryptedMessage;
+         char buffer_copy[BUFFER_SIZE];
+         char *token;
+
+         //Copy the received buffer
+         strncpy(buffer_copy, receive_buffer, BUFFER_SIZE);
+
+         //Split the string using the String tokeniser example 
+         token = strtok(buffer_copy, " ");
+         while (token != NULL)
+         {
+            // Convert the token to an unsigned long long and add it to the vector
+            cout << "Token: " << token << endl;
+            unsigned long long value = strtoull(token, NULL, 10);
+            encryptedMessage.push_back(value);
+            token = strtok(NULL, " ");
+         }
+
+         string sDecryptedMessage = ""; // Clear the decrypted message buffer
+         if(!encryptedMessage.empty()){
+            cout << "Decrypting the message using RSA-CBC" << endl;
+            //Decrypt the message using RSA-CBC function and add it to a string
+            sDecryptedMessage = decryptRSA_CBC(encryptedMessage, serverKey->d, serverKey->n, nonce); // Decrypt the message using RSA-CBC
+            cout << "Decrypted message: " << sDecryptedMessage << endl;
+           
+         }
+         else{
+            cout << send_buffer << " Error: Encrypted message is empty!\n" << endl;
+         }
+        
+
          printf("MSG RECEIVED <--: %s\n", receive_buffer);
          // printBuffer("RECEIVE_BUFFER", receive_buffer);
+         
+       
+        
 
          //********************************************************************
          // SEND
