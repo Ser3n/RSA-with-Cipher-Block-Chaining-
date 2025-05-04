@@ -100,9 +100,10 @@ void getCA(CA *caKEY)
 	unsigned long long p = 173; // First prime number
 	unsigned long long q = 149; // Second prime number
 
-	caKEY->nCA = p * q;						  // 25777;
-	unsigned long long z = (p - 1) * (q - 1); // 25456
-	caKEY->eCA = 3;							  // CA's public exponent
+	caKEY->nCA = p * q; // 25777;
+	// unsigned long long z = (p - 1) * (q - 1); // 25456 Hardcoded
+	caKEY->dCA = 16971; // CA's private exponent
+	caKEY->eCA = 3;		// CA's public exponent
 }
 
 // Week 6 RSA_CBC - "Key exchange"
@@ -117,15 +118,10 @@ void extractServerKey(unsigned long long cert, CA *caKEY, RSA *serverKey)
 // Generate a random nonce for CBC initialization
 unsigned long long generateNonce(unsigned long long maxValue)
 {
-	// Using simple number rand for nonce
-	unsigned long long nonce = rand() % 10000 + 1; // Random value between 1 and 10000
+	srand(time(NULL));										// Seed the random number generator
+	unsigned long long nonce = rand() % (maxValue - 2) + 2; // Random value between 1 and 10000
 
-	// // Use Boost's random number generator
-	// mt19937 gen{static_cast<unsigned int>(time(0))};
-	// uniform_int_distribution<unsigned long long> dist(1, maxValue - 1);
-	// return dist(gen);
-
-	// Ensure nonce is less than n (RSA requirement)
+	// Ensure nonce is less than n
 	if (nonce >= maxValue)
 	{
 		nonce = maxValue - 1;
@@ -144,24 +140,28 @@ vector<unsigned long long> encryptRSA_CBC(const string &message, unsigned long l
 	for (char c : message)
 	{
 		// Step 1: XOR with previous cipher block (CBC step)
-		// Reference: Week 5 Security CBC - "XOR operation"
 		unsigned long long XORing = c ^ previousCipher;
 
 		// Step 2: Encrypt with RSA
-		// Reference: Week 6 Part 3 - "RSA encryption: c = m^e mod n"
 		unsigned long long cipher = repeat_square(XORing, serverKey->e, serverKey->n);
 
 		// Step 3: Add to ciphertext
 		ciphertext.push_back(cipher);
 
 		// Step 4: Update previous cipher for next block
-		// Reference: Week 5 Security CBC - "Updating cipher block"
 		previousCipher = cipher;
 	}
 
 	return ciphertext;
 }
 
+void displayStringChar(char input[400]) // Debugging
+{
+	for (int i = 0; i < 400 && input[i] != '\0'; i++)
+    {
+        cout << input[i] << ": " << (int)input[i] << " ";
+    }
+}
 /////////////////////////////////////////////////////////////////////
 
 void printBuffer(const char *header, char *buffer)
@@ -481,7 +481,7 @@ int main(int argc, char *argv[])
 	}
 
 	cout << "\n==============================================";
-	cout << "Waiting for <<server's>> CERT........";
+	cout << "\nWaiting for <<server's>> CERT........\n";
 
 	n = 0;
 
@@ -504,7 +504,7 @@ int main(int argc, char *argv[])
 	}
 
 	// cout << "Received from server: ", receive_buffer<< endl;
-	printBuffer("RECEIVE_BUFFER", receive_buffer); // debug
+	// printBuffer("RECEIVE_BUFFER", receive_buffer); // debug
 
 	// Extract certificate value from received message
 	unsigned long long cert = 0;
@@ -514,15 +514,15 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	printBuffer("RECEIVE_CERT", receive_buffer); // debug
+	// printBuffer("RECEIVE_CERT", receive_buffer); // debug
+	cout << "==============================================\n";
 
 	cout << "Received certificate from server dca(e,n): " << cert << endl;
 
 	cout << "==============================================\n";
 
-	cout << " Extract  server's public key using CA's public key" << endl;
-
-	cout << "==============================================\n";
+	cout << " Extract  server's public key using CA's public key\n"
+		 << endl;
 
 	extractServerKey(cert, caCert, serverKey); // Extract the server's public key from the certificate
 	// debug
@@ -534,7 +534,7 @@ int main(int argc, char *argv[])
 	cout << "Sending ACK 226 to server" << endl;
 	snprintf(send_buffer, BUFFER_SIZE, "ACK 226 public key received\r\n"); // ACK 226 to acknowledge receipt of certificate
 	bytes = send(s, send_buffer, strlen(send_buffer), 0);
-	printBuffer("SEND_BUFFER", send_buffer); // debug the header
+	// printBuffer("SEND_BUFFER", send_buffer); // debug the header
 	cout << "Sent ACK 226: " << send_buffer << endl;
 	cout << "==============================================\n";
 	cout << "Generating nonce and encrypt" << endl;
@@ -550,7 +550,7 @@ int main(int argc, char *argv[])
 	// Send encrypted nonce to server
 	snprintf(send_buffer, BUFFER_SIZE, "ENC:%llu\r\n", encryptedNonce); // Send encrypted nonce to server
 	bytes = send(s, send_buffer, strlen(send_buffer), 0);
-	printBuffer("SEND_BUFFER", send_buffer); // debug
+	// printBuffer("SEND_BUFFER", send_buffer); // debug
 	cout << "Sent encrypted nonce: " << send_buffer << endl;
 
 	cout << "==============================================\n";
@@ -577,7 +577,7 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Received from server: %s\n", receive_buffer);
-	printBuffer("RECEIVE_BUFFER", receive_buffer); // debug
+	// printBuffer("RECEIVE_BUFFER", receive_buffer); // debug
 
 	if (strncmp(receive_buffer, "ACK 220", 7) != 0)
 	{
@@ -607,20 +607,23 @@ int main(int argc, char *argv[])
 	{
 		send_buffer[strlen(send_buffer) - 1] = '\0'; // strip '\n'
 
-		cout << "=============PLAIN Text received by client===============" << endl;
+		cout << "=============PLAIN Text Sent by client===============" << endl;
 		cout << send_buffer << endl;
 		cout << "========================================================" << endl;
+		//Display ASCII values for debugging
+		//displayStringChar(send_buffer); // Debugging
+
 		// Encrypt the message using RSA-CBC
 		vector<unsigned long long> EncryptText = encryptRSA_CBC(send_buffer, nonce, serverKey);
 		// create and print string
 		string sEncryptText = "";
 
 		int i = 0;
-		cout << "Encrypted message: " << endl;
+		// cout << "Encrypted message: " << endl;
 		for (unsigned long long cipher : EncryptText)
 		{
-			cout << cipher << " ";
-			// Append each cipher to the string
+			// cout << cipher << " ";
+			//  Append each cipher to the string
 			sEncryptText += to_string(cipher) + " ";
 		}
 		// Remove trailing space
@@ -637,15 +640,15 @@ int main(int argc, char *argv[])
 		cout << endl;
 		// Send the encrypted message to the server as a string
 		snprintf(send_buffer, BUFFER_SIZE, "%s\r\n", sEncryptText.c_str());
-		printBuffer("SEND_BUFFER", send_buffer); // debug 
+		// printBuffer("SEND_BUFFER", send_buffer); // debug
 
 		//*******************************************************************
 		// SEND
 		//*******************************************************************
 
 		bytes = send(s, send_buffer, strlen(send_buffer), 0);
-		printf("\nMSG SENT <--: %s\n", send_buffer); // line sent
-		printf("Message length: %d \n", (int)strlen(send_buffer));
+		// printf("\nMSG SENT <--: %s\n", send_buffer); // line sent
+		// printf("Message length: %d \n", (int)strlen(send_buffer));
 
 #if defined __unix__ || defined __APPLE__
 		if (bytes == -1)
@@ -695,7 +698,7 @@ int main(int argc, char *argv[])
 		}
 
 		// printBuffer("RECEIVE_BUFFER", receive_buffer);
-		printf("MSG RECEIVED --> %s\n", receive_buffer);
+		//printf("MSG RECEIVED --> %s\n", receive_buffer);
 		// printf("<<<SERVER's Reply>>>:%s\n",receive_buffer);
 
 		// get another user input
